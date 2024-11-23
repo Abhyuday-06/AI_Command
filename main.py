@@ -22,7 +22,7 @@ def ai_response():
 
     try:
         # Call Gemini API to generate content
-        response = model.generate_content(prompt + " in 50 words.")
+        response = model.generate_content(prompt + " in 40 words.")
         return response.text  # Nightbot requires plain text, so return response as-is
     except Exception as e:
         return f"Error: {str(e)}", 500

@@ -1,4 +1,4 @@
-import json
+"""import json
 import os
 import openai  # Install this library in requirements.txt
 
@@ -24,3 +24,17 @@ def handler(request):
 
     except Exception as e:
         return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}
+"""
+
+from http.server import BaseHTTPRequestHandler
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Function executed successfully!")
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f"Error: {e}".encode())

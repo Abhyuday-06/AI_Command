@@ -10,7 +10,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-      "@vercel/python": "^1.0.0"
+    "@vercel/python": "^1.2.4"
   }
-  
 }

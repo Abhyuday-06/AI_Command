@@ -3,33 +3,18 @@ import os
 import openai
 
 # Make sure the OpenAI API key is passed correctly through environment variables
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    raise ValueError("OpenAI API key is missing!")
+openai.api_key = openai_api_key
 
 def handler(request):
-    # Get the query parameter (you can pass it through the URL like /api/ai?query=your_query)
-    query = request.args.get("query", "Hello! How can I assist you?")
-
     try:
-        # Send the query to OpenAI API
         response = openai.Completion.create(
             model="text-davinci-003",
-            prompt=query,
-            max_tokens=100,
-            temperature=0.7
+            prompt="Say hello!",
+            max_tokens=10
         )
-        result = response.choices[0].text.strip()
-
-        # Return the result as a JSON response
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"response": result}),
-            "headers": {"Content-Type": "application/json"}
-        }
-
+        return json.dumps({"response": response.choices[0].text.strip()}), 200, {"Content-Type": "application/json"}
     except Exception as e:
-        # Catch and return any errors
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": str(e)}),
-            "headers": {"Content-Type": "application/json"}
-        }
+        return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}

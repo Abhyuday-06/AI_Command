@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import google.generativeai as genai
 
 app = Flask(__name__)
@@ -8,17 +8,19 @@ genai.configure(api_key="AIzaSyD6wSDExmGOIIZ7dP-3wS2Vut7Xh1yHcAs")  # Replace wi
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
-    prompt = request.args.get('prompt')  # Get the prompt from the querystring
+    # Get the prompt from the querystring
+    prompt = request.args.get('prompt')
     if not prompt:
-        return "No prompt provided."
+        return jsonify({"error": "No prompt provided."}), 400
 
     try:
         # Call Gemini API to generate content
-        model = genai.GenerativeModel("gemini-1.5-pro")
         response = model.generate_content(prompt)
-        return response.text
+        return response.text  # Nightbot requires plain text, so return response as-is
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {str(e)}", 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    # Use the port provided by Render or default to 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)

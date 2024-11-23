@@ -1,26 +1,35 @@
 import json
 import os
-import openai  # Install this library in requirements.txt
+import openai
 
-# Set up the OpenAI API key (replace with your own or use environment variables)
-openai.api_key = os.getenv("OPENAI_API_KEY", "sk-Q94aZMdKc_YQy6ReeNWy_u0WQcANXtcg6rDfb2n9RpT3BlbkFJhEMkJmA2u5n0KUv2mZ4UztE8OhICyjj0gAgAp1AGYA")
+# Make sure the OpenAI API key is passed correctly through environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def handler(request):
-    # Get the query from the request
+    # Get the query parameter (you can pass it through the URL like /api/ai?query=your_query)
     query = request.args.get("query", "Hello! How can I assist you?")
 
     try:
-        # Send the query to OpenAI
+        # Send the query to OpenAI API
         response = openai.Completion.create(
-            model="text-davinci-003",  # Adjust the model as needed
+            model="text-davinci-003",
             prompt=query,
             max_tokens=100,
             temperature=0.7
         )
         result = response.choices[0].text.strip()
 
-        # Return a JSON response
-        return json.dumps({"response": result}), 200, {"Content-Type": "application/json"}
+        # Return the result as a JSON response
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"response": result}),
+            "headers": {"Content-Type": "application/json"}
+        }
 
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}
+        # Catch and return any errors
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)}),
+            "headers": {"Content-Type": "application/json"}
+        }

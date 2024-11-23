@@ -10,8 +10,9 @@ if not api_key:
     raise ValueError("GEMINI_API_KEY environment variable not set")
 genai.configure(api_key=api_key)
 
-# Initialize the model
-model = genai.GenerativeModel("gemini-1.5-pro")
+# Initialize the models
+pro_model = genai.GenerativeModel("gemini-1.5-pro")
+flash_model = genai.GenerativeModel("gemini-1.5-flash")
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
@@ -21,11 +22,23 @@ def ai_response():
         return jsonify({"error": "No prompt provided."}), 400
 
     try:
-        # Call Gemini API to generate content
-        response = model.generate_content(prompt + " in 50 words max.")
-        return response.text  # Nightbot requires plain text, so return response as-is
+        # Try using the Pro model
+        response = pro_model.generate_content(prompt + " in 50 words max.")
+        return response.text.strip()  # Nightbot requires plain text
     except Exception as e:
-        return f"Error: {str(e)}", 500
+        # Check if the error is due to quota exhaustion
+        error_message = str(e)
+        if "429" in error_message and "Resource has been exhausted" in error_message:
+            try:
+                # Fallback to the Flash model
+                flash_response = flash_model.generate_content(prompt + " in 50 words max.")
+                return flash_response.text.strip()
+            except Exception as flash_error:
+                # Handle any errors from the Flash model
+                return f"Error (Flash Model): {str(flash_error)}", 500
+        else:
+            # For any other errors, return the original error message
+            return f"Error: {error_message}", 500
 
 if __name__ == '__main__':
     # Use the port provided by Render or default to 8080

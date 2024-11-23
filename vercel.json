@@ -1,8 +1,10 @@
 {
     "version": 2,
-    "builds": [
-      { "src": "api/ai.py", "use": "@vercel/python" }
-    ],
+    "functions": {
+      "api/ai.py": {
+        "runtime": "python3.9"
+      }
+    },
     "routes": [
       { "src": "/api/(.*)", "dest": "api/ai.py" }
     ]

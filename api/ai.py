@@ -1,23 +1,26 @@
-import fetch from "node-fetch";
+import json
+import os
+import openai  # Install this library in requirements.txt
 
-export default async function handler(req, res) {
-  const query = req.query.query || "Hello! How can I assist you?";
-  
-  // Replace with your AI API endpoint and key
-  const response = await fetch("https://api.openai.com/v1/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer YOUR_OPENAI_API_KEY`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "text-davinci-003", // Replace with your AI model
-      prompt: query,
-      max_tokens: 100,
-    }),
-  });
+# Set up the OpenAI API key (replace with your own or use environment variables)
+openai.api_key = os.getenv("OPENAI_API_KEY", "sk-Q94aZMdKc_YQy6ReeNWy_u0WQcANXtcg6rDfb2n9RpT3BlbkFJhEMkJmA2u5n0KUv2mZ4UztE8OhICyjj0gAgAp1AGYA")
 
-  const data = await response.json();
+def handler(request):
+    # Get the query from the request
+    query = request.args.get("query", "Hello! How can I assist you?")
 
-  res.status(200).json({ response: data.choices[0].text.trim() });
-}
+    try:
+        # Send the query to OpenAI
+        response = openai.Completion.create(
+            model="text-davinci-003",  # Adjust the model as needed
+            prompt=query,
+            max_tokens=100,
+            temperature=0.7
+        )
+        result = response.choices[0].text.strip()
+
+        # Return a JSON response
+        return json.dumps({"response": result}), 200, {"Content-Type": "application/json"}
+
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}

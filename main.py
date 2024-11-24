@@ -12,7 +12,7 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 pro_model = genai.GenerativeModel("gemini-1.5-pro")
-flash_model = genai.GenerativeModel("gemini-flash")
+flash_model = genai.GenerativeModel("gemini-1.5-flash")
 
 conversation_contexts = {}
 

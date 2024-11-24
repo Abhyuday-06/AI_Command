@@ -3,6 +3,8 @@ import google.generativeai as genai
 import os
 import random
 import string
+import time
+from threading import Thread
 
 app = Flask(__name__)
 
@@ -14,11 +16,26 @@ genai.configure(api_key=api_key)
 pro_model = genai.GenerativeModel("gemini-1.5-pro")
 flash_model = genai.GenerativeModel("gemini-1.5-flash")
 
-conversation_contexts = {}
+conversation_contexts = {}  # Stores context as {code: {"timestamp": <time>, "context": <context>}}
+
 
 def generate_code():
     """Generate a unique 3-letter alphanumeric code."""
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+
+
+def cleanup_old_contexts():
+    """Remove conversation contexts older than 3 hours."""
+    while True:
+        current_time = time.time()
+        to_delete = [
+            code for code, data in conversation_contexts.items()
+            if current_time - data['timestamp'] > 3 * 60 * 60  
+        ]
+        for code in to_delete:
+            del conversation_contexts[code]
+        time.sleep(60)  
+
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
@@ -28,9 +45,10 @@ def ai_response():
 
     if prompt.startswith("#"):
         code, _, new_prompt = prompt.partition(" ")
-        code = code[1:] 
+        code = code[1:]  
         if code in conversation_contexts:
-            previous_context = conversation_contexts[code]
+            # Retrieve and prepend the context
+            previous_context = conversation_contexts[code]["context"]
             prompt = previous_context + " " + new_prompt.strip()
         else:
             return f"Error: Conversation with code #{code} not found.", 404
@@ -54,10 +72,17 @@ def ai_response():
         else:
             return f"Error: {error_message}", 500
 
-    conversation_contexts[code] = prompt
+    conversation_contexts[code] = {
+        "timestamp": time.time(),
+        "context": answer  # Save only the answer for context, not the full prompt
+    }
 
     return message
 
+
 if __name__ == '__main__':
+    cleanup_thread = Thread(target=cleanup_old_contexts, daemon=True)
+    cleanup_thread.start()
+
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)

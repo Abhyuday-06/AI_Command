@@ -51,18 +51,19 @@ def ai_response():
         _, last_response = conversation_history[code]
         context = last_response
 
-    final_prompt = new_prompt
+    final_prompt = "Limit your response to 40 words. "
     if context:
         final_prompt = f"Use this context for reference: {context}. {new_prompt}"
-
+    final_prompt += new_prompt
+    
     try:
         response = pro_model.generate_content(final_prompt)
-        response_text = f"Pro Steve's Ghost says, \"{response.text}\""
+        response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
         model_used = "pro"
     except Exception as e:
         if "429" in str(e):  
             response = flash_model.generate_content(final_prompt)
-            response_text = f"Flash Steve's Ghost says, \"{response.text}\""
+            response_text = f"Flash Steve's Ghost says, \"{response.text.strip()}\""
             model_used = "flash"
         else:
             return f"Error: {str(e)}", 500
@@ -70,7 +71,7 @@ def ai_response():
     if not code or code not in conversation_history:
         code = ''.join([chr(ord('a') + (int(time.time()) + i) % 26) for i in range(3)])
 
-    conversation_history[code] = (time.time(), response.text)
+    conversation_history[code] = (time.time(), response.text.strip())
 
     return f"{response_text} #{code}"
 

@@ -33,7 +33,6 @@ schedule_cleanup()
 @app.route('/ai', methods=['GET'])
 def ai_response():
     global conversation_history
-
     raw_prompt = request.args.get('prompt', '')
     if not raw_prompt:
         return jsonify({"error": "No prompt provided."}), 400
@@ -41,28 +40,45 @@ def ai_response():
     if raw_prompt.startswith('#'):
         parts = raw_prompt.split(' ', 1)
         code = parts[0][1:]  
-        new_prompt = parts[1] if len(parts) > 1 else ''  
+        new_prompt = parts[1].strip() if len(parts) > 1 else ''  
     else:
         code = None
-        new_prompt = raw_prompt
+        new_prompt = raw_prompt.strip()
 
     context = None
     if code and code in conversation_history:
         _, last_response = conversation_history[code]
         context = last_response
 
-    final_prompt = "Answer in max to max 40 words. "
+    structured_prompt = (
+        "You are a helpful assistant named Steve's Ghost. "
+        "You respond concisely (maximum 40 words) to user questions. "
+        "Use the provided context only for reference, and always focus on answering the user's current question.\n\n"
+    )
+
     if context:
-        final_prompt = f"Use this context for reference: {context}. {new_prompt}"
-    final_prompt += new_prompt
-    
+        structured_prompt += f"Context: {context}\n"
+
+    structured_prompt += (
+        "Current Question: {new_prompt}\n"
+        "Instructions: If the user input is an acknowledgment like 'thank you' or 'got it,' respond politely without repeating the context. "
+        "Here are examples:\n"
+        "1. Context: The Mariana Trench is the deepest point discovered, about 36,070 feet below sea level.\n"
+        "   Question: Thanks!\n"
+        "   Response: You're welcome! Let me know if you have more questions.\n\n"
+        "2. Context: Humans discovered the Mariana Trench.\n"
+        "   Question: What about the Tonga Trench?\n"
+        "   Response: The Tonga Trench reaches about 35,433 feet, just below the Mariana Trench.\n\n"
+        "Now respond to the user's current question concisely and appropriately."
+    ).format(new_prompt=new_prompt)
+
     try:
-        response = pro_model.generate_content(final_prompt)
+        response = pro_model.generate_content(structured_prompt)
         response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
         model_used = "pro"
     except Exception as e:
         if "429" in str(e):  
-            response = flash_model.generate_content(final_prompt)
+            response = flash_model.generate_content(structured_prompt)
             response_text = f"Flash Steve's Ghost says, \"{response.text.strip()}\""
             model_used = "flash"
         else:
@@ -72,9 +88,7 @@ def ai_response():
         code = ''.join([chr(ord('a') + (int(time.time()) + i) % 26) for i in range(3)])
 
     conversation_history[code] = (time.time(), response.text.strip())
-
     return f"{response_text} #{code}"
-
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))

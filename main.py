@@ -1,10 +1,8 @@
 from flask import Flask, request, jsonify
 import google.generativeai as genai
 import os
-import random
-import string
 import time
-from threading import Thread
+from threading import Timer
 
 app = Flask(__name__)
 
@@ -16,73 +14,67 @@ genai.configure(api_key=api_key)
 pro_model = genai.GenerativeModel("gemini-1.5-pro")
 flash_model = genai.GenerativeModel("gemini-1.5-flash")
 
-conversation_contexts = {}  # Stores context as {code: {"timestamp": <time>, "context": <context>}}
+conversation_history = {}
+EXPIRATION_TIME = 3 * 60 * 60  
+
+def clean_up_history():
+    current_time = time.time()
+    expired_keys = [key for key, (timestamp, _) in conversation_history.items() if current_time - timestamp > EXPIRATION_TIME]
+    for key in expired_keys:
+        del conversation_history[key]
+
+def schedule_cleanup():
+    Timer(600, clean_up_history).start()
 
 
-def generate_code():
-    """Generate a unique 3-letter alphanumeric code."""
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
-
-
-def cleanup_old_contexts():
-    """Remove conversation contexts older than 3 hours."""
-    while True:
-        current_time = time.time()
-        to_delete = [
-            code for code, data in conversation_contexts.items()
-            if current_time - data['timestamp'] > 3 * 60 * 60  
-        ]
-        for code in to_delete:
-            del conversation_contexts[code]
-        time.sleep(60)  
+schedule_cleanup()
 
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
-    prompt = request.args.get('prompt')
-    if not prompt:
+    global conversation_history
+
+    raw_prompt = request.args.get('prompt', '')
+    if not raw_prompt:
         return jsonify({"error": "No prompt provided."}), 400
 
-    if prompt.startswith("#"):
-        code, _, new_prompt = prompt.partition(" ")
-        code = code[1:]  
-        if code in conversation_contexts:
-            # Retrieve and prepend the context
-            previous_context = conversation_contexts[code]["context"]
-            prompt = previous_context + " " + new_prompt.strip()
-        else:
-            return f"Error: Conversation with code #{code} not found.", 404
-
+    if raw_prompt.startswith('#'):
+        parts = raw_prompt.split(' ', 1)
+        code = parts[0][1:]  
+        new_prompt = parts[1] if len(parts) > 1 else ''  
     else:
-        code = generate_code()
+        code = None
+        new_prompt = raw_prompt
+
+    context = None
+    if code and code in conversation_history:
+        _, last_response = conversation_history[code]
+        context = last_response
+
+    final_prompt = new_prompt
+    if context:
+        final_prompt = f"Use this context for reference: {context}. {new_prompt}"
 
     try:
-        response = pro_model.generate_content(prompt + " in 50 words max.")
-        answer = response.text.strip()
-        message = f"Pro Steve's Ghost says, \"{answer}\" #{code}"
+        response = pro_model.generate_content(final_prompt)
+        response_text = f"Pro Steve's Ghost says, \"{response.text}\""
+        model_used = "pro"
     except Exception as e:
-        error_message = str(e)
-        if "429" in error_message and "Resource has been exhausted" in error_message:
-            try:
-                flash_response = flash_model.generate_content(prompt + " in 50 words max.")
-                answer = flash_response.text.strip()
-                message = f"Flash Steve's Ghost says, \"{answer}\" #{code}"
-            except Exception as flash_error:
-                return f"Error (Flash Model): {str(flash_error)}", 500
+        if "429" in str(e):  
+            response = flash_model.generate_content(final_prompt)
+            response_text = f"Flash Steve's Ghost says, \"{response.text}\""
+            model_used = "flash"
         else:
-            return f"Error: {error_message}", 500
+            return f"Error: {str(e)}", 500
 
-    conversation_contexts[code] = {
-        "timestamp": time.time(),
-        "context": answer  # Save only the answer for context, not the full prompt
-    }
+    if not code or code not in conversation_history:
+        code = ''.join([chr(ord('a') + (int(time.time()) + i) % 26) for i in range(3)])
 
-    return message
+    conversation_history[code] = (time.time(), response.text)
+
+    return f"{response_text} #{code}"
 
 
 if __name__ == '__main__':
-    cleanup_thread = Thread(target=cleanup_old_contexts, daemon=True)
-    cleanup_thread.start()
-
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)

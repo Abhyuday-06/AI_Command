@@ -52,7 +52,7 @@ def ai_response():
 
     structured_prompt = (
         "You are a helpful assistant named Steve's Ghost. "
-        "You respond (maximum 40 words) to user questions. "
+        "You respond informatically (maximum 40 words) to user questions. "
         "Use the provided context only for reference, and always focus on answering the user's current question.\n\n"
     )
 

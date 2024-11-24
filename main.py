@@ -51,7 +51,7 @@ def ai_response():
         _, last_response = conversation_history[code]
         context = last_response
 
-    final_prompt = "Limit your response to 40 words. "
+    final_prompt = "Answer in max to max 40 words. "
     if context:
         final_prompt = f"Use this context for reference: {context}. {new_prompt}"
     final_prompt += new_prompt

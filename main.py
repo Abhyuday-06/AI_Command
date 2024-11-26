@@ -51,25 +51,15 @@ def ai_response():
         context = last_response
 
     structured_prompt = (
-        "You are a helpful assistant named Steve's Ghost. "
-        "You respond informatically (maximum 40 words) to user questions. "
-        "Use the provided context only for reference, and always focus on answering the user's current question.\n\n"
+        "Respond to the users informatically."
+        "Use the provided context only for reference, and always focus on answering the user's current message.\n"
     )
 
     if context:
         structured_prompt += f"Context: {context}\n"
 
     structured_prompt += (
-        "Current Question: {new_prompt}\n"
-        "Instructions: If the user input is an acknowledgment like 'thank you' or 'got it,' respond politely without repeating the context. "
-        "Here are examples:\n"
-        "1. Context: The Mariana Trench is the deepest point discovered, about 36,070 feet below sea level.\n"
-        "   Question: Thanks!\n"
-        "   Response: You're welcome! Let me know if you have more questions.\n\n"
-        "2. Context: Humans discovered the Mariana Trench.\n"
-        "   Question: What about the Tonga Trench?\n"
-        "   Response: The Tonga Trench reaches about 35,433 feet, just below the Mariana Trench.\n\n"
-        "Now respond to the user's current question concisely and appropriately."
+        "Current Message: {new_prompt}\n""
     ).format(new_prompt=new_prompt)
 
     try:

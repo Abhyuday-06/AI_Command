@@ -59,7 +59,7 @@ def ai_response():
         structured_prompt += f"Context: {context}\n"
 
     structured_prompt += (
-        "Current Message: {new_prompt}\n""
+        "Current Message: {new_prompt}\n"
     ).format(new_prompt=new_prompt)
 
     try:

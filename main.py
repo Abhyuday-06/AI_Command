@@ -51,7 +51,7 @@ def ai_response():
         context = last_response
 
     structured_prompt = (
-        "Respond to the users informatically in less than 350 words."
+        "Respond to the users informatically in less than 350 characters."
         "Use the provided context only for reference, and always focus on answering the user's current message.\n"
     )
 

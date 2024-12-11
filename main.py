@@ -12,9 +12,11 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-flash2_0_model = genai.GenerativeModel("gemini-2.0-flash-exp")
-pro_model = genai.GenerativeModel("gemini-1.5-pro-002")
-flash1_5_model = genai.GenerativeModel("gemini-1.5-flash-8b-latest")
+models = {
+    "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
+    "pro": genai.GenerativeModel("gemini-1.5-pro-002"),
+    "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
+}
 
 conversation_history = {}
 EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
@@ -39,8 +41,8 @@ def ai_response():
 
     if raw_prompt.startswith('#'):
         parts = raw_prompt.split(' ', 1)
-        code = parts[0][1:]  # Extract the code after '#'
-        new_prompt = parts[1].strip() if len(parts) > 1 else ''
+        code = parts[0][1:]  # Extract code
+        new_prompt = parts[1].strip() if len(parts) > 1 else ''  # Remaining prompt
     else:
         code = None
         new_prompt = raw_prompt.strip()
@@ -51,7 +53,7 @@ def ai_response():
         context = last_response
 
     structured_prompt = (
-        "Respond to the users informatically in less than 350 characters. "
+        "Respond to the users informatically in less than 350 characters."
         "Use the provided context only for reference, and always focus on answering the user's current message.\n"
     )
 
@@ -62,28 +64,37 @@ def ai_response():
         "Current Message: {new_prompt}\n"
     ).format(new_prompt=new_prompt)
 
+    response = None
+    model_used = None
+
     try:
-        response = flash2_0_model.generate_content(structured_prompt)
+        response = models["flash2.0"].generate_content(structured_prompt)
         response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
         model_used = "flash-2.0"
     except Exception as e:
-        try:
-            response = pro_model.generate_content(structured_prompt)
-            response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
-            model_used = "pro"
-        except Exception as pro_error:
+        if "429" in str(e):
             try:
-                response = flash1_5_model.generate_content(structured_prompt)
-                response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
-                model_used = "flash-1.5"
-            except Exception as flash_error:
-                return jsonify({"error": "All models failed.", "details": str(flash_error)}), 500
+                response = models["pro"].generate_content(structured_prompt)
+                response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
+                model_used = "pro"
+            except Exception as e:
+                if "429" in str(e):
+                    try:
+                        response = models["flash1.5"].generate_content(structured_prompt)
+                        response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                        model_used = "flash-1.5"
+                    except Exception as e:
+                        return f"Error: {str(e)}", 500
+                else:
+                    return f"Error: {str(e)}", 500
+        else:
+            return f"Error: {str(e)}", 500
 
     if not code or code not in conversation_history:
         code = ''.join([chr(ord('a') + (int(time.time()) + i) % 26) for i in range(3)])
 
     conversation_history[code] = (time.time(), response.text.strip())
-    return jsonify({"response": response_text, "code": code, "model_used": model_used})
+    return f"{response_text} #{code}"
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))

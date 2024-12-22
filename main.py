@@ -22,7 +22,7 @@ models = {
 
 conversation_history = {}
 EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
-MAX_CHARS = 390
+MAX_CHARS = 360
 
 def clean_up_history():
     current_time = time.time()

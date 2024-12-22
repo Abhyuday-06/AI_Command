@@ -70,7 +70,7 @@ def ai_response():
             return f"Invalid conversation ID: #{code}", 400
 
     structured_prompt = (
-        f"Respond to the user informatively and in detail, but keep the total response (including 'Steve\'s Ghost says') under {MAX_CHARS} characters. "
+        f"Respond to the user informatively and with huge detail, but keep the total response under {MAX_CHARS} characters. "
         "Use the provided context history only for reference to maintain conversation context, and always focus on directly answering the user's current message.\n"
     )
 

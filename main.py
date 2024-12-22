@@ -3,6 +3,8 @@ import google.generativeai as genai
 import os
 import time
 from threading import Timer
+import random
+import string
 
 app = Flask(__name__)
 
@@ -32,6 +34,9 @@ def schedule_cleanup():
 
 schedule_cleanup()
 
+def generate_conversation_id():
+    return ''.join(random.choice(string.ascii_letters) for i in range(3))
+
 @app.route('/ai', methods=['GET'])
 def ai_response():
     global conversation_history
@@ -47,51 +52,65 @@ def ai_response():
         code = None
         new_prompt = raw_prompt.strip()
 
-    context = None
-    if code and code in conversation_history:
-        _, last_response = conversation_history[code]
-        context = last_response
+    if code and code not in conversation_history:
+        return f"Invalid conversation ID: #{code}", 400
+
+    context_history = ""
+    if code and conversation_history:
+        context_list = []
+        for key, (_, value) in conversation_history.items():
+            if key == code:
+                context_list.append(value)
+                break
+        if context_list:
+            context_history = "\n".join(context_list)
+        else:
+            return f"Invalid conversation ID: #{code}", 400
+        
 
     structured_prompt = (
-        "Respond to the users informatically in less than 350 characters."
-        "Use the provided context only for reference, and always focus on answering the user's current message.\n"
+        "Respond to the user informatively in less than 390 characters. "
+        "Use the provided context history only for reference to maintain conversation context, and always focus on directly answering the user's current message.\n"
     )
 
-    if context:
-        structured_prompt += f"Context: {context}\n"
+    if context_history:
+        structured_prompt += f"Context History:\n{context_history}\n"
 
-    structured_prompt += (
-        "Current Message: {new_prompt}\n"
-    ).format(new_prompt=new_prompt)
+    structured_prompt += f"Current Message: {new_prompt}\n"
 
     response = None
     model_used = None
+    MAX_CHARS = 390
+    response_text = ""
 
     try:
-        response = models["flash2.0"].generate_content(structured_prompt)
+        response = models["flash2.0"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
         response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
         model_used = "flash-2.0"
     except Exception as e:
-        if "429" in str(e):
+        if "429" in str(e): #Rate limit error
             try:
-                response = models["pro"].generate_content(structured_prompt)
+                response = models["pro"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
                 response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
                 model_used = "pro"
             except Exception as e:
                 if "429" in str(e):
                     try:
-                        response = models["flash1.5"].generate_content(structured_prompt)
+                        response = models["flash1.5"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
                         response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
                         model_used = "flash-1.5"
                     except Exception as e:
-                        return f"Error: {str(e)}", 500
+                        return f"Error with all models: {str(e)}", 500
                 else:
-                    return f"Error: {str(e)}", 500
+                    return f"Error with Pro model: {str(e)}", 500
         else:
-            return f"Error: {str(e)}", 500
+            return f"Error with Flash 2.0 model: {str(e)}", 500
+    
+    if not response:
+        return "No response from the model.", 500
 
-    if not code or code not in conversation_history:
-        code = ''.join([chr(ord('a') + (int(time.time()) + i) % 26) for i in range(3)])
+    if not code:
+        code = generate_conversation_id()
 
     conversation_history[code] = (time.time(), response.text.strip())
     return f"{response_text} #{code}"

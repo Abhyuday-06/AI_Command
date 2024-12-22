@@ -22,6 +22,7 @@ models = {
 
 conversation_history = {}
 EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
+MAX_CHARS = 390 # Maximum characters for the response
 
 def clean_up_history():
     current_time = time.time()
@@ -46,8 +47,8 @@ def ai_response():
 
     if raw_prompt.startswith('#'):
         parts = raw_prompt.split(' ', 1)
-        code = parts[0][1:]  # Extract code
-        new_prompt = parts[1].strip() if len(parts) > 1 else ''  # Remaining prompt
+        code = parts[0][1:]
+        new_prompt = parts[1].strip() if len(parts) > 1 else ''
     else:
         code = None
         new_prompt = raw_prompt.strip()
@@ -66,10 +67,9 @@ def ai_response():
             context_history = "\n".join(context_list)
         else:
             return f"Invalid conversation ID: #{code}", 400
-        
 
     structured_prompt = (
-        "Respond to the user informatively in less than 390 characters. "
+        f"Respond to the user informatively in less than {MAX_CHARS} characters. "
         "Use the provided context history only for reference to maintain conversation context, and always focus on directly answering the user's current message.\n"
     )
 
@@ -80,11 +80,10 @@ def ai_response():
 
     response = None
     model_used = None
-    MAX_CHARS = 390
     response_text = ""
 
     try:
-        response = models["flash2.0"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
+        response = models["flash2.0"].generate_content(structured_prompt)
         response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
         model_used = "flash-2.0"
     except Exception as e:
@@ -96,7 +95,7 @@ def ai_response():
             except Exception as e:
                 if "429" in str(e):
                     try:
-                        response = models["flash1.5"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
+                        response = models["flash1.5"].generate_content(structured_prompt)
                         response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
                         model_used = "flash-1.5"
                     except Exception as e:

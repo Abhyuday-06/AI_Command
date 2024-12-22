@@ -22,7 +22,7 @@ models = {
 
 conversation_history = {}
 EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
-MAX_CHARS = 390 # Maximum characters for the response
+MAX_CHARS = 390
 
 def clean_up_history():
     current_time = time.time()
@@ -36,7 +36,8 @@ def schedule_cleanup():
 schedule_cleanup()
 
 def generate_conversation_id():
-    return ''.join(random.choice(string.ascii_letters) for i in range(3))
+    characters = string.ascii_lowercase + string.digits  # Lowercase and digits
+    return ''.join(random.choice(characters) for i in range(3))
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
@@ -69,7 +70,7 @@ def ai_response():
             return f"Invalid conversation ID: #{code}", 400
 
     structured_prompt = (
-        f"Respond to the user informatively in less than {MAX_CHARS} characters. "
+        f"Respond to the user informatively and in detail, but keep the total response (including 'Steve\'s Ghost says') under {MAX_CHARS} characters. "
         "Use the provided context history only for reference to maintain conversation context, and always focus on directly answering the user's current message.\n"
     )
 

@@ -84,7 +84,7 @@ def ai_response():
     except Exception as e:
         if "429" in str(e):  # Handle rate limit errors
             try:
-                response = models["pro"].generate_content(structured_prompt, max_output_tokens=MAX_CHARS)
+                response = models["pro"].generate_content(structured_prompt)
                 response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
                 model_used = "pro"
             except Exception as e:

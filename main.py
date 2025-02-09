@@ -14,14 +14,15 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 models = {
+    "pro2.0": genai.GenerativeModel("gemini-2.0-pro-exp-02-05"),
     "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
-    "pro": genai.GenerativeModel("gemini-1.5-pro-002"),
+    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
     "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
 }
 
 conversation_history = {}
-EXPIRATION_TIME = 3 * 60 * 60  
-MAX_CHARS = 360  
+EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
+MAX_CHARS = 360
 
 def clean_up_history():
     """Periodically clean up expired conversation history."""
@@ -54,7 +55,7 @@ def ai_response():
 
     if raw_prompt.startswith('#'):
         parts = raw_prompt.split(' ', 1)
-        code = parts[0][1:]  
+        code = parts[0][1:]
         new_prompt = parts[1].strip() if len(parts) > 1 else ""
 
     context_history = ""
@@ -77,28 +78,37 @@ def ai_response():
     model_used = None
     response_text = ""
 
+    # Try using Gemini Pro 2.0 first, then fallback in order.
     try:
-        response = models["flash2.0"].generate_content(structured_prompt)
-        response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
-        model_used = "flash-2.0"
+        response = models["pro2.0"].generate_content(structured_prompt)
+        response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
+        model_used = "pro-2.0"
     except Exception as e:
-        if "429" in str(e):  # Handle rate limit errors
+        if "429" in str(e):  # Rate limit error; try next model.
             try:
-                response = models["pro"].generate_content(structured_prompt)
-                response_text = f"Pro Steve's Ghost says, \"{response.text.strip()}\""
-                model_used = "pro"
+                response = models["flash2.0"].generate_content(structured_prompt)
+                response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
+                model_used = "flash-2.0"
             except Exception as e:
                 if "429" in str(e):
                     try:
-                        response = models["flash1.5"].generate_content(structured_prompt)
-                        response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
-                        model_used = "flash-1.5"
+                        response = models["pro1.5"].generate_content(structured_prompt)
+                        response_text = f"Pro 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                        model_used = "pro-1.5"
                     except Exception as e:
-                        return f"Error with all models: {str(e)}", 500
+                        if "429" in str(e):
+                            try:
+                                response = models["flash1.5"].generate_content(structured_prompt)
+                                response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                model_used = "flash-1.5"
+                            except Exception as e:
+                                return f"Error with all models: {str(e)}", 500
+                        else:
+                            return f"Error with Pro 1.5 model: {str(e)}", 500
                 else:
-                    return f"Error with Pro model: {str(e)}", 500
+                    return f"Error with Flash 2.0 model: {str(e)}", 500
         else:
-            return f"Error with Flash 2.0 model: {str(e)}", 500
+            return f"Error with Pro 2.0 model: {str(e)}", 500
 
     if not response:
         return "No response from the model.", 500

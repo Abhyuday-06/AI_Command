@@ -56,6 +56,7 @@ def generate_conversation_id():
 def get_real_time_data(query):
     """
     Uses the Google Custom Search JSON API to fetch live data for the query.
+    This version requests 3 items and joins their snippets.
     """
     endpoint = "https://www.googleapis.com/customsearch/v1"
     params = {
@@ -63,18 +64,23 @@ def get_real_time_data(query):
         "cx": google_cse_id,
         "q": query,
         "hl": "en",
-        "gl": "us"
+        "gl": "us",
+        "num": 3  # Request the top 3 results.
     }
     response = requests.get(endpoint, params=params)
     response.raise_for_status()
     results = response.json()
-    # Debug: print the response if needed
+    # Debug: print the response for troubleshooting.
     print("DEBUG: Google Custom Search response:", results)
-    if "items" in results and len(results["items"]) > 0:
-        snippet = results["items"][0].get("snippet", "No snippet found")
-        print("DEBUG: Retrieved snippet:", snippet)
-        return snippet
-    return "No real-time data found."
+    snippets = []
+    if "items" in results:
+        for item in results["items"]:
+            snippet = item.get("snippet", "")
+            if snippet:
+                snippets.append(snippet)
+    combined_snippet = " ".join(snippets).strip() or "No real-time data found."
+    print("DEBUG: Combined snippet:", combined_snippet)
+    return combined_snippet
 
 @app.route('/ai', methods=['GET'])
 def ai_response():
@@ -92,14 +98,14 @@ def ai_response():
         conv_code = parts[0][1:]
         prompt_body = parts[1].strip() if len(parts) > 1 else ""
 
-    # If the prompt body starts with "search ", treat it as a real-time search query.
+    # Determine if this is a real-time search query.
     if prompt_body.lower().startswith("search "):
         search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
-        # Improved instructions: explicitly tell Gemini to extract a direct answer.
+        # Improved instructions: Tell Gemini to extract a direct answer from the data.
         structured_prompt = (
-            f"Based solely on the real-time data provided below, extract and provide a direct, specific answer to the following question. "
-            f"Answer in one concise sentence (under {MAX_CHARS} characters).\n\n"
+            f"Based solely on the real-time data provided below, extract and provide a direct, specific answer to the following question.\n"
+            f"Answer in one concise sentence (under {MAX_CHARS} characters). Do not use any external knowledge.\n\n"
             f"Real-Time Data: {real_time_context}\n\n"
             f"Question: {search_query}\n"
         )

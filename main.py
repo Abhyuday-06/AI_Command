@@ -93,12 +93,12 @@ def ai_response():
     if prompt_body.lower().startswith("search "):
         search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
-        structured_prompt = f"Respond to the user informatively and concisely (under {MAX_CHARS} characters).\n\n"
-        if conv_code and conv_code in conversation_history:
-            structured_prompt += f"Context History: {conversation_history[conv_code][1]}\n\n"
-        structured_prompt += (
+        # Explicitly instruct Gemini to use the provided real-time data.
+        structured_prompt = (
+            f"Using the real-time data provided below, answer the following question accurately and concisely (under {MAX_CHARS} characters).\n"
+            f"Do not rely on default knowledge—base your answer solely on the data provided.\n\n"
             f"Real-Time Data: {real_time_context}\n\n"
-            f"Current Message: {search_query}\n"
+            f"Question: {search_query}\n"
         )
         final_message = search_query
     else:

@@ -29,6 +29,7 @@ models = {
     "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
 }
 
+# Conversation history: {conversation_code: (timestamp, stored_prompt)}
 conversation_history = {}
 EXPIRATION_TIME = 3 * 60 * 60  # 3 hours
 MAX_CHARS = 360
@@ -77,44 +78,42 @@ def ai_response():
     if not raw_prompt:
         return jsonify({"error": "No prompt provided."}), 400
 
-    # If prompt starts with "!ai search ", treat it as a real-time query.
-    if raw_prompt.lower().startswith("search "):
-        search_query = raw_prompt[len("search "):].strip()
+    # Check if a conversation code is provided (e.g. "#ght")
+    conv_code = None
+    prompt_body = raw_prompt
+    if raw_prompt.startswith('#'):
+        parts = raw_prompt.split(' ', 1)
+        conv_code = parts[0][1:]
+        prompt_body = parts[1].strip() if len(parts) > 1 else ""
+
+    # Check if the remaining prompt starts with "search "
+    if prompt_body.lower().startswith("search "):
+        # Remove the "search " trigger
+        search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
-        structured_prompt = (
-            f"Respond to the user informatively and concisely (under {MAX_CHARS} characters). "
-            f"Use the following real-time data to inform your answer:\n\n"
-            f"Real-Time Data: {real_time_context}\n\n"
-            f"Current Message: {search_query}\n"
-        )
+        # Build the structured prompt. If a conversation code exists and is valid, include its context.
+        structured_prompt = f"Respond to the user informatively and concisely (under {MAX_CHARS} characters).\n\n"
+        if conv_code and conv_code in conversation_history:
+            structured_prompt += f"Context History: {conversation_history[conv_code][1]}\n\n"
+        structured_prompt += f"Real-Time Data: {real_time_context}\n\n"
+        structured_prompt += f"Current Message: {search_query}\n"
+        final_message = search_query
     else:
-        # Process as a normal prompt with optional conversation history.
-        code = None
-        new_prompt = raw_prompt
-        if raw_prompt.startswith('#'):
-            parts = raw_prompt.split(' ', 1)
-            code = parts[0][1:]
-            new_prompt = parts[1].strip() if len(parts) > 1 else ""
-        context_history = ""
-        if code:
-            if code in conversation_history:
-                context_history = conversation_history[code][1]
-            else:
-                code = None
+        # Normal query processing: use conversation history if available.
         structured_prompt = (
             f"Respond to the user informatively and concisely (under {MAX_CHARS} characters). "
             "Use the provided context history only for reference, and prioritize answering the user's current message.\n\n"
         )
-        if context_history:
-            structured_prompt += f"Context History: {context_history}\n\n"
-        structured_prompt += f"Current Message: {new_prompt}\n"
-        search_query = new_prompt
+        if conv_code and conv_code in conversation_history:
+            structured_prompt += f"Context History: {conversation_history[conv_code][1]}\n\n"
+        structured_prompt += f"Current Message: {prompt_body}\n"
+        final_message = prompt_body
 
     response = None
     model_used = None
     response_text = ""
 
-    # Attempt to use Gemini models with fallback.
+    # Try Gemini models with fallback in case of rate limits.
     try:
         response = models["pro2.0"].generate_content(structured_prompt)
         response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
@@ -149,17 +148,16 @@ def ai_response():
     if not response:
         return "No response from the model.", 500
 
-    # For non-search queries, update conversation history.
-    if not raw_prompt.lower().startswith("search "):
-        if not code:
-            code = generate_conversation_id()
-        conversation_history[code] = (time.time(), search_query)
-        return f"{response_text} #{code}"
+    # Update conversation history for non-search queries OR if a conversation code is provided.
+    if conv_code:
+        conversation_history[conv_code] = (time.time(), final_message)
+        code_to_return = conv_code
     else:
-        # For search queries, assign a conversation code (optional).
-        code = generate_conversation_id()
-        conversation_history[code] = (time.time(), search_query)
-        return f"{response_text} #{code}"
+        code_to_return = generate_conversation_id()
+        conversation_history[code_to_return] = (time.time(), final_message)
+
+    # Return the response appended with the conversation code.
+    return f"{response_text} #{code_to_return}"
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))

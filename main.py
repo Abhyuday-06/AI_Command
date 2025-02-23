@@ -150,7 +150,7 @@ def ai_response():
         return "No response from the model.", 500
 
     # For non-search queries, update conversation history.
-    if not raw_prompt.lower().startswith("!ai search "):
+    if not raw_prompt.lower().startswith("search "):
         if not code:
             code = generate_conversation_id()
         conversation_history[code] = (time.time(), search_query)

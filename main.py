@@ -68,6 +68,7 @@ def get_real_time_data(query):
     response = requests.get(endpoint, params=params)
     response.raise_for_status()
     results = response.json()
+    # Debug: print the response if needed
     print("DEBUG: Google Custom Search response:", results)
     if "items" in results and len(results["items"]) > 0:
         snippet = results["items"][0].get("snippet", "No snippet found")
@@ -95,10 +96,10 @@ def ai_response():
     if prompt_body.lower().startswith("search "):
         search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
-        # Explicitly instruct Gemini to use the provided real-time data.
+        # Improved instructions: explicitly tell Gemini to extract a direct answer.
         structured_prompt = (
-            f"Using the real-time data provided below, answer the following question accurately and concisely (under {MAX_CHARS} characters).\n"
-            f"Do not rely on default knowledge—base your answer solely on the data provided.\n\n"
+            f"Based solely on the real-time data provided below, extract and provide a direct, specific answer to the following question. "
+            f"Answer in one concise sentence (under {MAX_CHARS} characters).\n\n"
             f"Real-Time Data: {real_time_context}\n\n"
             f"Question: {search_query}\n"
         )

@@ -68,8 +68,10 @@ def get_real_time_data(query):
     response = requests.get(endpoint, params=params)
     response.raise_for_status()
     results = response.json()
+    print("DEBUG: Google Custom Search response:", results)
     if "items" in results and len(results["items"]) > 0:
         snippet = results["items"][0].get("snippet", "No snippet found")
+        print("DEBUG: Retrieved snippet:", snippet)
         return snippet
     return "No real-time data found."
 

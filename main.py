@@ -37,7 +37,8 @@ MAX_CHARS = 360
 def clean_up_history():
     """Remove conversation history entries older than EXPIRATION_TIME."""
     current_time = time.time()
-    expired_keys = [key for key, (timestamp, _) in conversation_history.items() if current_time - timestamp > EXPIRATION_TIME]
+    expired_keys = [key for key, (timestamp, _) in conversation_history.items() 
+                    if current_time - timestamp > EXPIRATION_TIME]
     for key in expired_keys:
         del conversation_history[key]
 
@@ -60,7 +61,9 @@ def get_real_time_data(query):
     params = {
         "key": google_api_key,
         "cx": google_cse_id,
-        "q": query
+        "q": query,
+        "hl": "en",
+        "gl": "us"
     }
     response = requests.get(endpoint, params=params)
     response.raise_for_status()
@@ -78,7 +81,7 @@ def ai_response():
     if not raw_prompt:
         return jsonify({"error": "No prompt provided."}), 400
 
-    # Check if a conversation code is provided (e.g. "#ght")
+    # Check for an optional conversation code (e.g., "#ght")
     conv_code = None
     prompt_body = raw_prompt
     if raw_prompt.startswith('#'):
@@ -86,20 +89,20 @@ def ai_response():
         conv_code = parts[0][1:]
         prompt_body = parts[1].strip() if len(parts) > 1 else ""
 
-    # Check if the remaining prompt starts with "search "
+    # If the prompt body starts with "search ", treat it as a real-time search query.
     if prompt_body.lower().startswith("search "):
-        # Remove the "search " trigger
         search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
-        # Build the structured prompt. If a conversation code exists and is valid, include its context.
         structured_prompt = f"Respond to the user informatively and concisely (under {MAX_CHARS} characters).\n\n"
         if conv_code and conv_code in conversation_history:
             structured_prompt += f"Context History: {conversation_history[conv_code][1]}\n\n"
-        structured_prompt += f"Real-Time Data: {real_time_context}\n\n"
-        structured_prompt += f"Current Message: {search_query}\n"
+        structured_prompt += (
+            f"Real-Time Data: {real_time_context}\n\n"
+            f"Current Message: {search_query}\n"
+        )
         final_message = search_query
     else:
-        # Normal query processing: use conversation history if available.
+        # Process as a normal prompt with optional conversation history.
         structured_prompt = (
             f"Respond to the user informatively and concisely (under {MAX_CHARS} characters). "
             "Use the provided context history only for reference, and prioritize answering the user's current message.\n\n"
@@ -110,32 +113,27 @@ def ai_response():
         final_message = prompt_body
 
     response = None
-    model_used = None
     response_text = ""
 
-    # Try Gemini models with fallback in case of rate limits.
+    # Attempt to generate content using Gemini models with fallback.
     try:
         response = models["pro2.0"].generate_content(structured_prompt)
         response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
-        model_used = "pro-2.0"
     except Exception as e:
         if "429" in str(e):
             try:
                 response = models["flash2.0"].generate_content(structured_prompt)
                 response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
-                model_used = "flash-2.0"
             except Exception as e:
                 if "429" in str(e):
                     try:
                         response = models["pro1.5"].generate_content(structured_prompt)
                         response_text = f"Pro 1.5 Steve's Ghost says, \"{response.text.strip()}\""
-                        model_used = "pro-1.5"
                     except Exception as e:
                         if "429" in str(e):
                             try:
                                 response = models["flash1.5"].generate_content(structured_prompt)
                                 response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
-                                model_used = "flash-1.5"
                             except Exception as e:
                                 return f"Error with all models: {str(e)}", 500
                         else:
@@ -148,7 +146,7 @@ def ai_response():
     if not response:
         return "No response from the model.", 500
 
-    # Update conversation history for non-search queries OR if a conversation code is provided.
+    # Update conversation history.
     if conv_code:
         conversation_history[conv_code] = (time.time(), final_message)
         code_to_return = conv_code
@@ -156,7 +154,6 @@ def ai_response():
         code_to_return = generate_conversation_id()
         conversation_history[code_to_return] = (time.time(), final_message)
 
-    # Return the response appended with the conversation code.
     return f"{response_text} #{code_to_return}"
 
 if __name__ == '__main__':

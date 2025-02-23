@@ -78,8 +78,8 @@ def ai_response():
         return jsonify({"error": "No prompt provided."}), 400
 
     # If prompt starts with "!ai search ", treat it as a real-time query.
-    if raw_prompt.lower().startswith("!ai search "):
-        search_query = raw_prompt[len("!ai search "):].strip()
+    if raw_prompt.lower().startswith("search "):
+        search_query = raw_prompt[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
         structured_prompt = (
             f"Respond to the user informatively and concisely (under {MAX_CHARS} characters). "

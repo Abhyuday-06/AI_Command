@@ -27,9 +27,9 @@ openai.api_key = os.getenv("OPENAI_EMBEDDING_API_KEY", gemini_api_key)  # You ca
 # Pre-configured Gemini models with fallback options.
 models = {
     "pro2.0": genai.GenerativeModel("gemini-2.0-pro-exp-02-05"),
-    "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
-    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
-    "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
+    "flash2.0": genai.GenerativeModel("gemini-2.0-flash"),
+    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-latest"),
+    "flash1.5": genai.GenerativeModel("gemini-1.5-flash-latest")
 }
 
 # Conversation history: {conversation_code: (timestamp, stored_prompt)}

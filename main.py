@@ -62,7 +62,7 @@ def cosine_similarity(vec1, vec2):
 
 def get_embedding(text, model="text-embedding-ada-002"):
     """Get embedding vector for the given text using OpenAI embeddings."""
-    response = openai.Embedding.create(input=text, model=model)
+    response = openai.Embedding.create(input=[text], model=model)
     return np.array(response['data'][0]['embedding'])
 
 def get_real_time_data(query):

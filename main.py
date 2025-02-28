@@ -8,6 +8,7 @@ import string
 import requests
 import numpy as np
 import openai  # For embeddings
+from sentence_transformers import SentenceTransformer # For Embeddings
 
 app = Flask(__name__)
 
@@ -22,7 +23,8 @@ if not google_api_key or not google_cse_id:
 
 # Configure Gemini API.
 genai.configure(api_key=gemini_api_key)
-openai.api_key = os.getenv("OPENAI_EMBEDDING_API_KEY", gemini_api_key)  # You can use the same key if allowed.
+#openai.api_key = os.getenv("OPENAI_EMBEDDING_API_KEY", gemini_api_key)  # Model is paid
+embeddings_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Pre-configured Gemini models with fallback options.
 models = {
@@ -60,10 +62,9 @@ def cosine_similarity(vec1, vec2):
     """Compute cosine similarity between two vectors."""
     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-def get_embedding(text, model="text-embedding-ada-002"):
-    """Get embedding vector for the given text using OpenAI embeddings."""
-    response = openai.Embedding.create(input=text, model=model)
-    return np.array(response['data'][0]['embedding'])
+def get_embedding(text):
+    """Returns a numpy array embedding of the input text."""
+    return embeddings_model.encode(text)
 
 def get_real_time_data(query):
     """

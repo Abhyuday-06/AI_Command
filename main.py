@@ -7,8 +7,7 @@ import random
 import string
 import requests
 import numpy as np
-import openai  # For embeddings
-from sentence_transformers import SentenceTransformer # For Embeddings
+import openai  # Only needed if you want to use openai embeddings, but here we use Gemini for summarization.
 
 app = Flask(__name__)
 
@@ -23,15 +22,13 @@ if not google_api_key or not google_cse_id:
 
 # Configure Gemini API.
 genai.configure(api_key=gemini_api_key)
-#openai.api_key = os.getenv("OPENAI_EMBEDDING_API_KEY", gemini_api_key)  # Model is paid
-embeddings_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Pre-configured Gemini models with fallback options.
 models = {
     "pro2.0": genai.GenerativeModel("gemini-2.0-pro-exp-02-05"),
-    "flash2.0": genai.GenerativeModel("gemini-2.0-flash"),
-    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-latest"),
-    "flash1.5": genai.GenerativeModel("gemini-1.5-flash-latest")
+    "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
+    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
+    "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
 }
 
 # Conversation history: {conversation_code: (timestamp, stored_prompt)}
@@ -58,18 +55,29 @@ def generate_conversation_id():
     characters = string.ascii_lowercase + string.digits
     return ''.join(random.choice(characters) for _ in range(3))
 
-def cosine_similarity(vec1, vec2):
-    """Compute cosine similarity between two vectors."""
-    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-
-def get_embedding(text):
-    """Returns a numpy array embedding of the input text."""
-    return embeddings_model.encode(text)
+def summarize_text(text, threshold=300):
+    """
+    If the provided text is longer than 'threshold', summarize it using one of the Gemini models.
+    """
+    if len(text) <= threshold:
+        return text
+    prompt = (
+        f"Summarize the following text into one concise sentence (under {MAX_CHARS} characters):\n\n{text}"
+    )
+    try:
+        # Using a faster model for summarization.
+        summary_resp = models["flash2.0"].generate_content(prompt)
+        summary = summary_resp.text.strip()
+        return summary if summary else text
+    except Exception as e:
+        # If summarization fails, return the original text.
+        print("Summarization error:", str(e))
+        return text
 
 def get_real_time_data(query):
     """
     Uses the Google Custom Search JSON API to fetch live data for the query.
-    Retrieves multiple items, splits them into sentences, and then selects the top relevant sentences.
+    Retrieves multiple items, combines their snippets, and summarizes if necessary.
     """
     endpoint = "https://www.googleapis.com/customsearch/v1"
     params = {
@@ -85,36 +93,17 @@ def get_real_time_data(query):
     results = response.json()
     print("DEBUG: Google Custom Search response:", results)
     
-    # Collect all snippets
-    all_snippets = []
+    snippets = []
     if "items" in results:
         for item in results["items"]:
             snippet = item.get("snippet", "")
             if snippet:
-                all_snippets.append(snippet)
-    combined_text = " ".join(all_snippets)
+                snippets.append(snippet)
+    combined_text = " ".join(snippets).strip() or "No real-time data found."
     print("DEBUG: Combined snippet text:", combined_text)
     
-    # Split into sentences (a simple split by period; for production use a robust method)
-    sentences = [s.strip() for s in combined_text.split('.') if s.strip()]
-    if not sentences:
-        return "No real-time data found."
-    
-    # Get embedding for the query
-    query_embedding = get_embedding(query)
-    
-    # Compute similarity for each sentence
-    sentence_similarities = []
-    for sentence in sentences:
-        emb = get_embedding(sentence)
-        similarity = cosine_similarity(query_embedding, emb)
-        sentence_similarities.append((sentence, similarity))
-    
-    # Sort sentences by similarity descending and pick top 3
-    sentence_similarities.sort(key=lambda x: x[1], reverse=True)
-    top_sentences = [s for s, sim in sentence_similarities[:3]]
-    
-    refined_context = " ".join(top_sentences)
+    # Summarize the combined text if it's too long.
+    refined_context = summarize_text(combined_text)
     print("DEBUG: Refined context for Gemini:", refined_context)
     return refined_context
 
@@ -139,8 +128,8 @@ def ai_response():
         search_query = prompt_body[len("search "):].strip()
         real_time_context = get_real_time_data(search_query)
         structured_prompt = (
-            f"Based solely on the real-time data provided below, extract and provide a direct, specific answer to the following question. "
-            f"Answer in one concise sentence (under {MAX_CHARS} characters). Do not rely on any external knowledge.\n\n"
+            f"Based solely on the real-time data provided below, extract and provide a direct, specific answer to the following question.\n"
+            f"Answer in one concise sentence (under {MAX_CHARS} characters). Do not use any external knowledge.\n\n"
             f"Real-Time Data: {real_time_context}\n\n"
             f"Question: {search_query}\n"
         )
@@ -158,7 +147,6 @@ def ai_response():
     response = None
     response_text = ""
 
-    # Try Gemini models with fallback.
     try:
         response = models["pro2.0"].generate_content(structured_prompt)
         response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
@@ -189,7 +177,6 @@ def ai_response():
     if not response:
         return "No response from the model.", 500
 
-    # Update conversation history.
     if conv_code:
         conversation_history[conv_code] = (time.time(), final_message)
         code_to_return = conv_code

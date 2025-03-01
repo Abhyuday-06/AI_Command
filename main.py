@@ -7,7 +7,7 @@ import random
 import string
 import requests
 import numpy as np
-import openai  # Only needed if you want to use openai embeddings, but here we use Gemini for summarization.
+from sentence_transformers import SentenceTransformer
 
 app = Flask(__name__)
 
@@ -30,6 +30,9 @@ models = {
     "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
     "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
 }
+
+# Initialize SentenceTransformer model for re-ranking.
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Conversation history: {conversation_code: (timestamp, stored_prompt)}
 conversation_history = {}
@@ -55,29 +58,15 @@ def generate_conversation_id():
     characters = string.ascii_lowercase + string.digits
     return ''.join(random.choice(characters) for _ in range(3))
 
-def summarize_text(text, threshold=300):
-    """
-    If the provided text is longer than 'threshold', summarize it using one of the Gemini models.
-    """
-    if len(text) <= threshold:
-        return text
-    prompt = (
-        f"Summarize the following text into one concise sentence (under {MAX_CHARS} characters):\n\n{text}"
-    )
-    try:
-        # Using a faster model for summarization.
-        summary_resp = models["flash2.0"].generate_content(prompt)
-        summary = summary_resp.text.strip()
-        return summary if summary else text
-    except Exception as e:
-        # If summarization fails, return the original text.
-        print("Summarization error:", str(e))
-        return text
+def cosine_similarity(vec1, vec2):
+    """Compute cosine similarity between two vectors."""
+    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
 def get_real_time_data(query):
     """
     Uses the Google Custom Search JSON API to fetch live data for the query.
-    Retrieves multiple items, combines their snippets, and summarizes if necessary.
+    Retrieves multiple items, splits their snippets into sentences,
+    then uses SentenceTransformers to re-rank and select the top relevant passages.
     """
     endpoint = "https://www.googleapis.com/customsearch/v1"
     params = {
@@ -86,24 +75,46 @@ def get_real_time_data(query):
         "q": query,
         "hl": "en",
         "gl": "us",
-        "num": 3  # Retrieve top 3 results.
+        "num": 5  # Retrieve more results for a broader context.
     }
     response = requests.get(endpoint, params=params)
     response.raise_for_status()
     results = response.json()
     print("DEBUG: Google Custom Search response:", results)
     
+    # Gather all snippets
     snippets = []
     if "items" in results:
         for item in results["items"]:
             snippet = item.get("snippet", "")
             if snippet:
                 snippets.append(snippet)
-    combined_text = " ".join(snippets).strip() or "No real-time data found."
+    combined_text = " ".join(snippets).strip()
     print("DEBUG: Combined snippet text:", combined_text)
     
-    # Summarize the combined text if it's too long.
-    refined_context = summarize_text(combined_text)
+    # Split the combined text into sentences (a naive split; consider more robust methods in production)
+    sentences = [s.strip() for s in combined_text.split('.') if s.strip()]
+    if not sentences:
+        return "No real-time data found."
+    
+    # Compute embeddings for the query and for each sentence.
+    query_emb = embedding_model.encode([query])[0]
+    sentence_embs = embedding_model.encode(sentences)
+    
+    # Compute cosine similarity for each sentence.
+    sims = [cosine_similarity(query_emb, emb) for emb in sentence_embs]
+    # Get indices of top 3 sentences.
+    top_indices = np.argsort(sims)[-3:]
+    refined_context = " ".join([sentences[i] for i in top_indices])
+    
+    # Optionally, you can further summarize if refined_context is too long.
+    if len(refined_context) > 300:
+        prompt = f"Summarize the following text into one concise sentence (under {MAX_CHARS} characters):\n\n{refined_context}"
+        try:
+            summary_resp = models["flash2.0"].generate_content(prompt)
+            refined_context = summary_resp.text.strip()
+        except Exception as e:
+            print("Summarization error:", str(e))
     print("DEBUG: Refined context for Gemini:", refined_context)
     return refined_context
 

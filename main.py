@@ -25,6 +25,7 @@ genai.configure(api_key=gemini_api_key)
 
 # Pre-configured Gemini models with fallback options.
 models = {
+    "pro2.5": genai.GenerativeModel("gemini-2.5-pro-exp-03-25"),
     "pro2.0": genai.GenerativeModel("gemini-2.0-pro-exp-02-05"),
     "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
     "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
@@ -70,7 +71,6 @@ def summarize_text(text, threshold=300):
         summary = summary_resp.text.strip()
         return summary if summary else text
     except Exception as e:
-        # If summarization fails, return the original text.
         print("Summarization error:", str(e))
         return text
 
@@ -102,7 +102,6 @@ def get_real_time_data(query):
     combined_text = " ".join(snippets).strip() or "No real-time data found."
     print("DEBUG: Combined snippet text:", combined_text)
     
-    # Summarize the combined text if it's too long.
     refined_context = summarize_text(combined_text)
     print("DEBUG: Refined context for Gemini:", refined_context)
     return refined_context
@@ -148,31 +147,37 @@ def ai_response():
     response_text = ""
 
     try:
-        response = models["pro2.0"].generate_content(structured_prompt)
-        response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
+        # Try Gemini 2.5 Pro first.
+        response = models["pro2.5"].generate_content(structured_prompt)
+        response_text = f"Pro 2.5 Steve's Ghost says, \"{response.text.strip()}\""
     except Exception as e:
         if "429" in str(e):
             try:
-                response = models["flash2.0"].generate_content(structured_prompt)
-                response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
+                response = models["pro2.0"].generate_content(structured_prompt)
+                response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
             except Exception as e:
                 if "429" in str(e):
                     try:
-                        response = models["pro1.5"].generate_content(structured_prompt)
-                        response_text = f"Pro 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                        response = models["flash2.0"].generate_content(structured_prompt)
+                        response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
                     except Exception as e:
                         if "429" in str(e):
                             try:
-                                response = models["flash1.5"].generate_content(structured_prompt)
-                                response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                response = models["pro1.5"].generate_content(structured_prompt)
+                                response_text = f"Pro 1.5 Steve's Ghost says, \"{response.text.strip()}\""
                             except Exception as e:
-                                return f"Error with all models: {str(e)}", 500
+                                if "429" in str(e):
+                                    try:
+                                        response = models["flash1.5"].generate_content(structured_prompt)
+                                        response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                    except Exception as e:
+                                        return f"Error with all models: {str(e)}", 500
+                                else:
+                                    return f"Error with Pro 1.5 model: {str(e)}", 500
                         else:
-                            return f"Error with Pro 1.5 model: {str(e)}", 500
-                else:
-                    return f"Error with Flash 2.0 model: {str(e)}", 500
+                            return f"Error with Flash 2.0 model: {str(e)}", 500
         else:
-            return f"Error with Pro 2.0 model: {str(e)}", 500
+            return f"Error with Pro 2.5 model: {str(e)}", 500
 
     if not response:
         return "No response from the model.", 500

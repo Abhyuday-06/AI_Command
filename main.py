@@ -26,9 +26,10 @@ genai.configure(api_key=gemini_api_key)
 # Pre-configured Gemini models with fallback options.
 models = {
     "pro2.5": genai.GenerativeModel("gemini-2.5-pro-exp-03-25"),
-    "pro2.0": genai.GenerativeModel("gemini-2.0-pro-exp-02-05"),
-    "flash2.0": genai.GenerativeModel("gemini-2.0-flash-exp"),
-    "pro1.5": genai.GenerativeModel("gemini-1.5-pro-002"),
+    "flash2.5": genai.GenerativeModel("gemini-2.5-flash-preview-05-20"),
+    "flash2.0": genai.GenerativeModel("gemini-2.0-flash"),
+    "flash2.0exp": genai.GenerativeModel("gemini-2.0-flash-exp"),
+    "flash2.0lite": genai.GenerativeModel("gemini-2.0-flash-lite"),
     "flash1.5": genai.GenerativeModel("gemini-1.5-flash-8b-latest")
 }
 
@@ -153,32 +154,45 @@ def ai_response():
     except Exception as e:
         if "429" in str(e):
             try:
-                response = models["pro2.0"].generate_content(structured_prompt)
-                response_text = f"Pro 2.0 Steve's Ghost says, \"{response.text.strip()}\""
+                # Next fallback: 2.5 Flash
+                response = models["flash2.5"].generate_content(structured_prompt)
+                response_text = f"Flash 2.5 Steve's Ghost says, \"{response.text.strip()}\""
             except Exception as e:
                 if "429" in str(e):
                     try:
+                        # Next fallback: 2.0 Flash
                         response = models["flash2.0"].generate_content(structured_prompt)
                         response_text = f"Flash 2.0 Steve's Ghost says, \"{response.text.strip()}\""
                     except Exception as e:
                         if "429" in str(e):
                             try:
-                                response = models["pro1.5"].generate_content(structured_prompt)
-                                response_text = f"Pro 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                # Next fallback: 2.0 Flash Exp
+                                response = models["flash2.0exp"].generate_content(structured_prompt)
+                                response_text = f"Flash 2.0 Exp Steve's Ghost says, \"{response.text.strip()}\""
                             except Exception as e:
                                 if "429" in str(e):
                                     try:
-                                        response = models["flash1.5"].generate_content(structured_prompt)
-                                        response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                        # Next fallback: 2.0 Flash Lite
+                                        response = models["flash2.0lite"].generate_content(structured_prompt)
+                                        response_text = f"Flash 2.0 Lite Steve's Ghost says, \"{response.text.strip()}\""
                                     except Exception as e:
-                                        return f"Error with all models: {str(e)}", 500
+                                        if "429" in str(e):
+                                            try:
+                                                # Final fallback: 1.5 Flash
+                                                response = models["flash1.5"].generate_content(structured_prompt)
+                                                response_text = f"Flash 1.5 Steve's Ghost says, \"{response.text.strip()}\""
+                                            except Exception as e:
+                                                return f"Error with all models: {str(e)}", 500
+                                        else:
+                                            return f"Error with Flash 2.0 Lite model: {str(e)}", 500
                                 else:
-                                    return f"Error with Pro 1.5 model: {str(e)}", 500
+                                    return f"Error with Flash 2.0 Exp model: {str(e)}", 500
                         else:
                             return f"Error with Flash 2.0 model: {str(e)}", 500
+                else:
+                    return f"Error with Flash 2.5 model: {str(e)}", 500
         else:
             return f"Error with Pro 2.5 model: {str(e)}", 500
-
     if not response:
         return "No response from the model.", 500
 

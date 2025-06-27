@@ -25,7 +25,7 @@ genai.configure(api_key=gemini_api_key)
 
 # Pre-configured Gemini models with fallback options.
 models = {
-    "pro2.5": genai.GenerativeModel("gemini-2.5-pro-exp-03-25"),
+    "pro2.5": genai.GenerativeModel("gemini-2.5-pro-preview-06-05"),
     "flash2.5": genai.GenerativeModel("gemini-2.5-flash-preview-05-20"),
     "flash2.0": genai.GenerativeModel("gemini-2.0-flash"),
     "flash2.0exp": genai.GenerativeModel("gemini-2.0-flash-exp"),
